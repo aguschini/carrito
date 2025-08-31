@@ -1,70 +1,84 @@
-import { useState } from "react";
+import React, {useState, useEffect } from "react";
 import './App.css';
 
 function App() {
-  // Datos de prueba (luego se reemplazan por datos del servidor)
-  const [productos, setProductos] = useState([
-    { 
-      codigo: "00123", 
-      nombre: "Yerba Mate",
-      descripcion: "Amarga", 
-      precio: 2500, 
-      stock: 30, 
-      categoria: "Alimentos",
-      imagen: "imagenes/playadito.jpg"
-    },
-    { 
-      codigo: "00456", 
-      nombre: "Café Tostado",
-      descripcion: "Premium", 
-      precio: 3400, 
-      stock: 12, 
-      categoria: "Alimentos",
-      imagen: "imagenes/nescafe.jpg" 
-    },
-    { 
-      codigo: "00789", 
-      nombre: "Galletitas",
-      descripcion: "Saladas",  
-      precio: 1200, 
-      stock: 50, 
-      categoria: "Snacks",
-      imagen: "imagenes/formis.jpg" 
-    }
-  ]);
-
   const [mostrarModal, setMostrarModal] = useState(false);
   const [nuevoProducto, setNuevoProducto] = useState({
-    codigo: '', nombre: '', descripcion: '', precio: '', stock: '', categoria: '', imagen: ''
+    codigo: '', nombre: '', descripcion: '', precio: '', stock: '', categoria: '', imagen: null
   });
-  const [productoEditando, setProductoEditando] = useState(null); // índice del producto en edición
+  const [productoEditando, setProductoEditando] = useState(null);
+  const [preview, setPreview] = useState(null); // para mostrar preview de la imagen seleccionada
+  
+  // Estado para guardar productos
+  const [productos, setProductos] = useState([]);
 
-  const guardarProducto = () => {
-    if (productoEditando !== null) {
-      // EDITAR
-      const copia = [...productos];
-      copia[productoEditando] = nuevoProducto;
-      setProductos(copia);
-    } else {
-      // AGREGAR
-      setProductos([...productos, nuevoProducto]);
+  // useEffect para cargar los productos desde el backend al iniciar
+  useEffect(() => {
+    const cargarProductos = async () => {
+      try {
+        const res = await fetch("http://localhost:4000/productos");
+        const data = await res.json();
+        setProductos(data);
+      } catch (error) {
+        console.error("Error al cargar productos:", error);
+      }
+    };
+
+    cargarProductos();
+  }, []);
+
+  // 🚀 Guardar producto en backend
+  const guardarProducto = async () => {
+    try {
+      const formData = new FormData();
+      formData.append("codigo", nuevoProducto.codigo);
+      formData.append("nombre", nuevoProducto.nombre);
+      formData.append("descripcion", nuevoProducto.descripcion);
+      formData.append("precio", nuevoProducto.precio);
+      formData.append("stock", nuevoProducto.stock);
+      formData.append("categoria", nuevoProducto.categoria);
+      if (nuevoProducto.imagen) {
+        formData.append("imagen", nuevoProducto.imagen); // archivo real
+      }
+
+      const res = await fetch("http://localhost:4000/productos", {
+        method: "POST",
+        body: formData,
+      });
+
+
+      if (!res.ok) throw new Error("Error al guardar producto");
+
+      const productoCreado = await res.json();
+
+      // Actualizar lista local
+      if (productoEditando !== null) {
+        const copia = [...productos];
+        copia[productoEditando] = productoCreado;
+        setProductos(copia);
+      } else {
+        setProductos([...productos, productoCreado]);
+      }
+
+      // resetear
+      setNuevoProducto({ codigo: '', nombre: '', descripcion: '', precio: '', stock: '', categoria: '', imagen: null });
+      setPreview(null);
+      setProductoEditando(null);
+      setMostrarModal(false);
+    } catch (err) {
+      console.error(err);
+      alert("Hubo un error al guardar el producto");
     }
-    // resetear
-    setNuevoProducto({ codigo: '', nombre: '', descripcion: '', precio: '', stock: '', categoria: '', imagen: '' });
-    setProductoEditando(null);
-    setMostrarModal(false);
   };
 
   const abrirEditar = (index) => {
-    setNuevoProducto(productos[index]);   // cargar datos del producto
-    setProductoEditando(index);           // guardar índice
+    setNuevoProducto(productos[index]);
+    setProductoEditando(index);
     setMostrarModal(true);
   };
 
   return (
-    
-    <div className="App min-h-screen bg-gray-100"> {/* formato pagina */}
-      
+    <div className="App min-h-screen bg-gray-100">
       {/* ENCABEZADO */}
       <header className="bg-[#293241] text-white text-center text-4xl p-10 font-serif">
         <h1>Carrito de Compras</h1>
@@ -74,7 +88,7 @@ function App() {
       <div className="p-6 text-left">
         <button 
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow" 
-          onClick = {() => setMostrarModal(true)}>
+          onClick={() => setMostrarModal(true)}>
           + Agregar Producto
         </button>
       </div>
@@ -98,7 +112,7 @@ function App() {
             {productos.map((p, i) => (
               <tr key={i} className="hover:bg-gray-100">
                 <td className="p-3 border text-center">
-                  <img src={p.imagen} alt={p.nombre} className="w-16 h-16 object-cover mx-auto rounded" />
+                  <img src={`http://localhost:4000${p.imagenUrl}`} alt={p.nombre} className="w-16 h-16 object-cover mx-auto rounded" />
                 </td>
                 <td className="p-3 border">{p.codigo}</td>
                 <td className="p-3 border">{p.nombre}</td>
@@ -146,19 +160,24 @@ function App() {
               value={nuevoProducto.categoria}
               onChange={(e) => setNuevoProducto({...nuevoProducto, categoria: e.target.value})}
             />
+
+            {/* Input para imagen */}
             <input
               type="file"
               accept="image/*"
               onChange={(e) => {
-                const archivo = e.target.files[0]; // tomo el primer archivo elegido
+                const archivo = e.target.files[0];
                 if (archivo) {
-                  const urlTemp = URL.createObjectURL(archivo); 
-                  // crea una URL temporal para mostrar la imagen
-                  setNuevoProducto({ ...nuevoProducto, imagen: urlTemp });
+                  setNuevoProducto({ ...nuevoProducto, imagen: archivo });
+                  setPreview(URL.createObjectURL(archivo));
                 }
               }}
+              className="mb-2"
             />
-          <div className="mb-6"></div>
+
+            {preview && (
+              <img src={preview} alt="preview" className="w-20 h-20 object-cover rounded mb-2" />
+            )}
 
             <div className="flex justify-end">
               <button className="bg-gray-300 px-4 py-2 rounded mr-2" onClick={() => setMostrarModal(false)}>Cancelar</button>
@@ -172,4 +191,3 @@ function App() {
 }
 
 export default App;
-
