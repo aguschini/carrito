@@ -1,81 +1,54 @@
-import express from "express";
-import mysql from "mysql";
-import multer from "multer";
-import fs from "fs";
-import path from "path";
+const express = require("express");
+const cors = require("cors");
+const multer = require("multer");
+const { PrismaClient } = require("@prisma/client");
+const path = require("path");
 
+const prisma = new PrismaClient();
 const app = express();
-const PORT = 30005;
 
-// Carpeta donde se guardarán las imágenes
-const uploadFolder = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadFolder)) {
-    fs.mkdirSync(uploadFolder);
-}
+app.use(cors());
+app.use(express.json());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Configuración de multer
 const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, uploadFolder);
-    },
-    filename: function (req, file, cb) {
-        cb(null, Date.now() + path.extname(file.originalname));
-    }
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
 });
-const upload = multer({ storage: storage });
+const upload = multer({ storage });
 
-// Servir imágenes de la carpeta uploads
-app.use("/uploads", express.static(uploadFolder));
+// Crear producto con imagen
+app.post("/productos", upload.single("imagen"), async (req, res) => {
+  try {
+    console.log("Body:", req.body);
+    console.log("File:", req.file);
 
-// Conexión a MySQL
-var con = mysql.createConnection({
-    host: "127.0.0.1",
-    user: "cinco",
-    password: "cinco",
-    database: "cinco"
-});
+    const { codigo, nombre, descripcion, precio, stock, categoria } = req.body;
 
-con.connect((err) => {
-    if (err) throw err;
-    console.log("Conectado a MySQL");
-});
-
-// Rutas MySQL
-app.get("/", (req, res) => {
-    con.query("SELECT * FROM sujeto", (err, result, fields) => {
-        if (err) throw err;
-        res.json(result);
+    const producto = await prisma.producto.create({
+      data: {
+        codigo,
+        nombre,
+        descripcion,
+        precio: parseFloat(precio),
+        stock: parseInt(stock),
+        categoria,
+        imagenUrl: req.file ? `/uploads/${req.file.filename}` : null,
+      },
     });
+
+    res.json(producto);
+  } catch (error) {
+    console.error(" Error al crear producto:", error);
+    res.status(500).json({ error: "Error al crear producto" });
+  }
 });
 
-app.get("/id/:id", (req, res) => {
-    const c = req.params;
-    con.query("SELECT * FROM sujeto WHERE id=" + c.id, (err, result, fields) => {
-        if (err) throw err;
-        res.json(result);
-    });
+
+// Listar productos
+app.get("/productos", async (req, res) => {
+  const productos = await prisma.producto.findMany();
+  res.json(productos);
 });
 
-// Ruta para subir imágenes
-app.post("/upload", upload.single("foto"), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: "No se subió ningún archivo" });
-    }
-    res.json({ mensaje: "Archivo subido", nombre: req.file.filename });
-});
-
-// Ruta para borrar imágenes
-app.delete("/delete/:filename", (req, res) => {
-    const filePath = path.join(uploadFolder, req.params.filename);
-    if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-        res.json({ mensaje: "Archivo borrado" });
-    } else {
-        res.status(404).json({ error: "Archivo no encontrado" });
-    }
-});
-
-// Iniciar servidor
-app.listen(PORT, () => {
-    console.log(`Servidor escuchando en http://localhost:${PORT}`);
-});
+app.listen(4000, () => console.log(" Backend corriendo en http://localhost:4000"));
