@@ -7,6 +7,8 @@ const path = require("path");
 const prisma = new PrismaClient();
 const app = express();
 
+const PORT = process.env.PORT || 4000
+
 app.use(cors());
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -51,4 +53,6 @@ app.get("/productos", async (req, res) => {
   res.json(productos);
 });
 
-app.listen(4000, () => console.log(" Backend corriendo en http://localhost:4000"));
+app.listen(PORT, () => {
+  console.log(`Servidor en http://localhost:${PORT}`);
+});

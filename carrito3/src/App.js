@@ -12,11 +12,13 @@ function App() {
   // Estado para guardar productos
   const [productos, setProductos] = useState([]);
 
+  const API_URL = "http://200.3.127.46:8002/~cinco";
+
   // useEffect para cargar los productos desde el backend al iniciar
   useEffect(() => {
     const cargarProductos = async () => {
       try {
-        const res = await fetch("http://localhost:4000/productos");
+        const res = await fetch(`${API_URL}/productos`);
         const data = await res.json();
         setProductos(data);
       } catch (error) {
@@ -41,11 +43,10 @@ function App() {
         formData.append("imagen", nuevoProducto.imagen); // archivo real
       }
 
-      const res = await fetch("http://localhost:4000/productos", {
-        method: "POST",
-        body: formData,
-      });
-
+    const res = await fetch(`${API_URL}/productos`, {
+      method: "POST",
+      body: formData,
+    });
 
       if (!res.ok) throw new Error("Error al guardar producto");
 
@@ -112,7 +113,7 @@ function App() {
             {productos.map((p, i) => (
               <tr key={i} className="hover:bg-gray-100">
                 <td className="p-3 border text-center">
-                  <img src={`http://localhost:4000${p.imagenUrl}`} alt={p.nombre} className="w-16 h-16 object-cover mx-auto rounded" />
+                  <img src={`${API_URL}${p.imagenUrl}`} alt={p.nombre} className="w-16 h-16 object-cover mx-auto rounded" />
                 </td>
                 <td className="p-3 border">{p.codigo}</td>
                 <td className="p-3 border">{p.nombre}</td>
